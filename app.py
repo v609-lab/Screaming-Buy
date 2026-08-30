@@ -3,7 +3,6 @@ import json
 import os
 import streamlit as st
 
-# Optional: Safely try importing your scanner if available
 try:
   from stock_agent import run_agent_scanner
 except ImportError:
@@ -29,43 +28,47 @@ if run_agent_scanner:
         st.rerun()
       except Exception as e:
         st.sidebar.error(f"Error running scan: {e}")
-else:
-  st.sidebar.info("Agent scanner function not imported.")
 
 st.sidebar.markdown("---")
 st.sidebar.header("📅 Historical Archive")
 
 if not os.path.exists("history"):
-  st.warning("The 'history' directory does not exist yet.")
+  st.error("❌ The 'history' folder does not exist in your repository!")
 else:
   files = sorted(os.listdir("history"), reverse=True)
   available_dates = [f.replace(".json", "") for f in files if f.endswith(".json")]
 
   if not available_dates:
-    st.warning("No history JSON files found in the history folder.")
+    st.error("❌ No `.json` files found inside the `history` folder.")
   else:
     selected_date = st.sidebar.selectbox("Select Date to View:", available_dates)
     file_path = os.path.join("history", f"{selected_date}.json")
 
+    st.subheader(f"📋 Market Rankings for: {selected_date}")
+
     if os.path.exists(file_path):
       try:
         with open(file_path, "r") as f:
-          data = json.load(f)
+          raw_data = f.read()
 
-        st.subheader(f"📋 Market Rankings for: {data.get('date', selected_date)}")
+        # Debug text to verify file content on screen
+        st.text(f"Raw file size: {len(raw_data)} bytes")
+
+        data = json.loads(raw_data)
         stocks = data.get("stocks", [])
 
-        if not stocks:
-          st.info("The history file is empty or contains no stocks list.")
-        else:
-          st.write(f"Successfully loaded {len(stocks)} ranked stocks:")
+        st.info(f"Found {len(stocks)} stocks in the data payload.")
 
+        if not stocks:
+          st.warning(
+              "The JSON file loaded, but the 'stocks' list is empty or missing."
+          )
+        else:
           for stock in stocks:
             rating = stock.get("rating", 5.0)
             ticker = stock.get("ticker", "UNKNOWN")
             price = stock.get("price", 0.0)
 
-            # Dynamic color badges
             if rating >= 8.0:
               badge = "🟢 **STRONG BUY**"
             elif rating >= 6.0:
@@ -86,6 +89,6 @@ else:
               c5.metric("P/E Ratio", stock.get("pe", "N/A"))
 
       except Exception as ex:
-        st.error(f"Error reading JSON file: {ex}")
+        st.error(f"❌ Error parsing JSON: {ex}")
     else:
-      st.error(f"Data file not found at {file_path}")
+      st.error(f"❌ File not found at path: {file_path}")
