@@ -14,6 +14,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Locate and prepare files
+        run: |
+          # Finds stock_agent.py anywhere in the repo workspace and brings it to the current root runner directory
+          find . -name "stock_agent.py" -exec cp {} . \;
+          find . -name "requirements.txt" -exec cp {} . \;
+          echo "Files in current directory:"
+          ls -la
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
