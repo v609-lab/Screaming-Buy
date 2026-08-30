@@ -2,42 +2,31 @@ from datetime import datetime
 import json
 import os
 import streamlit as st
-
-# Import your agent function directly
-from stock_agent import run_agent_scanner  # Make sure this matches your function name
+from stock_agent import run_agent_scanner
 
 st.set_page_config(
-    page_title="Screaming Buy Stock Agent", page_icon="🚀", layout="wide"
+    page_title="Stock Market Rating Dashboard", page_icon="📊", layout="wide"
 )
 
-st.title("🚀 US Stock 'Screaming Buy' Dashboard")
+st.title("📊 Institutional Stock Rating & Analysis Dashboard")
 st.markdown(
-    "Automated Fundamental Moat + Technical Analysis (MACD, RSI, Fibonacci,"
-    " SMAs)"
+    "Automated 1-to-10 Scoring (1 = Avoid, 10 = Strong Buy) using Gareth"
+    " Soloway Technical Support Levels & Moat Metrics."
 )
 
-# -----------------------------------------
-# SIDEBAR: ON-DEMAND RUNNER & ARCHIVE
-# -----------------------------------------
 st.sidebar.header("⚙️ Agent Controls")
-
-if st.sidebar.button("🚀 Run Stock Agent Now"):
-  with st.spinner(
-      "Running fundamental and technical analysis... Please wait (~15-30"
-      " seconds)..."
-  ):
+if st.sidebar.button("🚀 Run Live Market Scan Now"):
+  with st.spinner("Analyzing charts, support levels, and valuations..."):
     try:
-      # Run the function directly in memory using Streamlit's Python environment
       run_agent_scanner()
-      st.sidebar.success("Agent scan completed successfully!")
-      st.rerun()  # Refresh the page to load new results
+      st.sidebar.success("Scan completed successfully!")
+      st.rerun()
     except Exception as e:
-      st.sidebar.error(f"Failed to execute agent: {e}")
+      st.sidebar.error(f"Error running scan: {e}")
 
 st.sidebar.markdown("---")
 st.sidebar.header("📅 Historical Archive")
 
-# Load available history dates
 available_dates = []
 if os.path.exists("history"):
   files = sorted(os.listdir("history"), reverse=True)
@@ -45,40 +34,39 @@ if os.path.exists("history"):
 
 if not available_dates:
   st.warning(
-      "No historical data found yet. Click the 'Run Stock Agent Now' button on"
-      " the sidebar to generate your first list!"
+      "No history found. Click 'Run Live Market Scan Now' on the sidebar."
   )
 else:
-  # Default to the most recent date
   selected_date = st.sidebar.selectbox("Select Date to View:", available_dates)
-
-  # Load data for selected date
   file_path = os.path.join("history", f"{selected_date}.json")
+
   if os.path.exists(file_path):
     with open(file_path, "r") as f:
       data = json.load(f)
 
-    st.subheader(f"📊 Results for: {data.get('date')}")
-
+    st.subheader(f"📋 Market Rankings for: {data.get('date')}")
     stocks = data.get("stocks", [])
-    if not stocks:
-      st.info(
-          "No 'Screaming Buy' stocks matched the strict criteria on this date."
-      )
-    else:
-      st.success(
-          f"Found {len(stocks)} Screaming Buy opportunity(ies) on this date!"
-      )
 
-      # Display stocks in a clean card layout
-      for stock in stocks:
-        with st.expander(
-            f"🔥 {stock['ticker']} — Price: ${stock['price']}"
-        ):
-          col1, col2, col3, col4 = st.columns(4)
-          col1.metric("Current Price", f"${stock['price']}")
-          col2.metric("P/E Ratio", stock["pe"])
-          col3.metric("ROE", f"{stock['roe']}%")
-          col4.metric("RSI (14)", stock["rsi"])
+    for stock in stocks:
+      rating = stock["rating"]
+
+      # Dynamic color coding based on score
+      if rating >= 8.0:
+        badge = "🟢 **STRONG BUY**"
+      elif rating >= 6.0:
+        badge = "🟡 **HOLD / WATCH**"
+      else:
+        badge = "🔴 **AVOID / WEAK**"
+
+      with st.expander(
+          f"{badge} | {stock['ticker']} — Rating: {rating}/10 — Price:"
+          f" ${stock['price']}"
+      ):
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Rating Score", f"{rating} / 10")
+        c2.metric("Current Price", f"${stock['price']}")
+        c3.metric("Key Support Level", f"${stock['support_level']}")
+        c4.metric("RSI (14)", stock["rsi"])
+        c5.metric("P/E Ratio", stock["pe"])
   else:
     st.error("Data file not found.")
