@@ -27,15 +27,14 @@ def save_history(all_scored_stocks):
 
 
 # ==========================================
-# 2. BULLETPROOF TECHNICAL SCANNER
+# 2. BATCH TECHNICAL SCANNER
 # ==========================================
 
 
 def run_agent_scanner():
-  """Scans the US watchlist using historical price action,
+  """Scans the entire US watchlist in a single batch download,
 
-  calculating Gareth Soloway support zones, trend structures,
-  and momentum ratings without relying on fragile info endpoints.
+  evaluating Gareth Soloway support zones and rating every stock from 1 to 10.
   """
   watchlist = [
       "AAPL",
@@ -71,104 +70,95 @@ def run_agent_scanner():
   ]
 
   all_scored_stocks = []
-  print(f"Scanning {len(watchlist)} stocks...")
+  print(f"Downloading batch history for {len(watchlist)} stocks...")
 
-  for ticker in watchlist:
-    try:
-      # Fetch 1 year of daily history
-      hist = yf.download(
-          ticker, period="1yr", progress=False, auto_adjust=True
-      )
+  try:
+    # Download 1 year of daily data for all tickers simultaneously
+    data = yf.download(
+        watchlist, period="1yr", group_by="ticker", progress=False, auto_adjust=True
+    )
 
-      if hist.empty or len(hist) < 200:
+    for ticker in watchlist:
+      try:
+        # Extract individual stock history DataFrame
+        if len(watchlist) == 1:
+          hist = data
+        else:
+          hist = data[ticker].dropna(subset=["Close"])
+
+        if hist.empty or len(hist) < 200:
+          continue
+
+        current_price = float(hist["Close"].iloc[-1])
+
+        # --- Soloway Technical Calculations ---
+        # 1. Macro Trend Structure (200-day Moving Average)
+        ma_200 = float(hist["Close"].rolling(window=200).mean().iloc[-1])
+        is_macro_uptrend = current_price > ma_200
+
+        # 2. RSI Momentum (14-period)
+        delta = hist["Close"].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        current_rsi = round(float(rsi.iloc[-1]), 2)
+
+        # 3. Support Proximity (Distance to 60-day low)
+        three_month_low = float(hist["Low"].iloc[-60:].min())
+        distance_to_support_pct = (
+            (current_price - three_month_low) / three_month_low
+        ) * 100
+
+        # --- Scoring Engine (1 to 10 Scale) ---
+        score = 5.0
+
+        if is_macro_uptrend:
+          score += 2.5
+        else:
+          score -= 2.5
+
+        if distance_to_support_pct <= 3.0:
+          score += 2.0
+        elif distance_to_support_pct <= 7.0:
+          score += 1.0
+        elif distance_to_support_pct > 25.0:
+          score -= 1.0
+
+        if current_rsi < 40:
+          score += 1.5
+        elif current_rsi < 50:
+          score += 0.5
+        elif current_rsi > 75:
+          score -= 1.5
+
+        final_rating = round(max(1.0, min(10.0, score)), 1)
+
+        stock_data = {
+            "ticker": ticker,
+            "price": round(current_price, 2),
+            "support_level": round(three_month_low, 2),
+            "rating": final_rating,
+            "pe": "N/A",
+            "roe": "N/A",
+            "rsi": current_rsi,
+        }
+        all_scored_stocks.append(stock_data)
+
+      except Exception as ex:
+        print(f"Skipping {ticker} due to parsing error: {ex}")
         continue
 
-      # Handle multi-index columns if returned by yf.download
-      if isinstance(hist.columns, pd.MultiIndex):
-        hist = hist.droplevel(1, axis=1)
+  except Exception as e:
+    print(f"Batch download failed: {e}")
 
-      current_price = float(hist["Close"].iloc[-1])
-
-      # --- Soloway Technical Calculations ---
-      # 1. Macro Trend Structure (200-day Moving Average)
-      ma_200 = float(hist["Close"].rolling(window=200).mean().iloc[-1])
-      is_macro_uptrend = current_price > ma_200
-
-      # 2. RSI Momentum (14-period)
-      delta = hist["Close"].diff()
-      gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-      loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-      rs = gain / loss
-      rsi = 100 - (100 / (1 + rs))
-      current_rsi = round(float(rsi.iloc[-1]), 2)
-
-      # 3. Support Proximity (Distance to 3-month / 60-day structural low)
-      three_month_low = float(hist["Low"].iloc[-60:].min())
-      distance_to_support_pct = (
-          (current_price - three_month_low) / three_month_low
-      ) * 100
-
-      # --- Scoring Engine (1 to 10 Scale) ---
-      score = 5.0
-
-      # Factor A: Macro Trend
-      if is_macro_uptrend:
-        score += 2.5
-      else:
-        score -= 2.5
-
-      # Factor B: Support Proximity
-      if distance_to_support_pct <= 3.0:
-        score += 2.0  # Right at major structural support
-      elif distance_to_support_pct <= 7.0:
-        score += 1.0
-      elif distance_to_support_pct > 25.0:
-        score -= 1.0  # Extended far above support
-
-      # Factor C: RSI Momentum Dip
-      if current_rsi < 40:
-        score += 1.5  # Oversold pullback in a trend
-      elif current_rsi < 50:
-        score += 0.5
-      elif current_rsi > 75:
-        score -= 1.5  # Overbought
-
-      final_rating = round(max(1.0, min(10.0, score)), 1)
-
-      stock_data = {
-          "ticker": ticker,
-          "price": round(current_price, 2),
-          "support_level": round(three_month_low, 2),
-          "rating": final_rating,
-          "pe": "N/A",  # Bypassed to prevent API blocks
-          "roe": "N/A",
-          "rsi": current_rsi,
-      }
-      all_scored_stocks.append(stock_data)
-
-    except Exception as e:
-      print(f"Error on {ticker}: {e}")
-      continue
-
-  # Ensure we have data even if network acts up
-  if not all_scored_stocks:
-    all_scored_stocks.append({
-        "ticker": "AAPL",
-        "price": 225.50,
-        "support_level": 210.00,
-        "rating": 8.5,
-        "pe": "N/A",
-        "roe": "N/A",
-        "rsi": 42.1,
-    })
-
-  # Sort by highest rating descending
+  # Sort all successfully scored stocks from highest rating to lowest
   all_scored_stocks = sorted(
       all_scored_stocks, key=lambda x: x["rating"], reverse=True
   )
 
   save_history(all_scored_stocks)
-  print(f"Scan complete. Ranked {len(all_scored_stocks)} stocks.")
+  print(f"Scan complete. Successfully ranked {len(all_scored_stocks)} stocks.")
   return all_scored_stocks
 
 
