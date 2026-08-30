@@ -1,6 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import os
+import subprocess
 import streamlit as st
 
 st.set_page_config(
@@ -13,8 +14,36 @@ st.markdown(
     " SMAs)"
 )
 
-# Sidebar: Date selection for the last 15 days
+# -----------------------------------------
+# SIDEBAR: ON-DEMAND RUNNER & ARCHIVE
+# -----------------------------------------
+st.sidebar.header("⚙️ Agent Controls")
+
+if st.sidebar.button("🚀 Run Stock Agent Now"):
+  with st.spinner(
+      "Running fundamental and technical analysis... Please wait (~15-30"
+      " seconds)..."
+  ):
+    try:
+      # Executes your stock agent script directly
+      result = subprocess.run(
+          ["python", "stock_agent.py"],
+          capture_output=True,
+          text=True,
+          timeout=60,
+      )
+      if result.returncode == 0:
+        st.sidebar.success("Agent scan completed successfully!")
+        st.rerun()  # Refresh the page to load new results
+      else:
+        st.sidebar.error(f"Error running agent: {result.stderr}")
+    except Exception as e:
+      st.sidebar.error(f"Failed to execute agent: {e}")
+
+st.sidebar.markdown("---")
 st.sidebar.header("📅 Historical Archive")
+
+# Load available history dates
 available_dates = []
 if os.path.exists("history"):
   files = sorted(os.listdir("history"), reverse=True)
@@ -22,8 +51,8 @@ if os.path.exists("history"):
 
 if not available_dates:
   st.warning(
-      "No historical data found yet. Run your GitHub Action to generate"
-      " results!"
+      "No historical data found yet. Click the 'Run Stock Agent Now' button on"
+      " the sidebar to generate your first list!"
   )
 else:
   # Default to the most recent date
@@ -47,7 +76,7 @@ else:
           f"Found {len(stocks)} Screaming Buy opportunity(ies) on this date!"
       )
 
-      # Format into a clean table display
+      # Display stocks in a clean card layout
       for stock in stocks:
         with st.expander(
             f"🔥 {stock['ticker']} — Price: ${stock['price']}"
@@ -59,7 +88,3 @@ else:
           col4.metric("RSI (14)", stock["rsi"])
   else:
     st.error("Data file not found.")
-
-# Refresh button
-if st.button("🔄 Refresh Data"):
-  st.rerun()
