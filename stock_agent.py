@@ -124,9 +124,12 @@ def analyze_technicals(ticker_symbol):
     return {"passed": False}
 
 
+save_history(screaming_buys)
+
 # ==========================================
 # AGENT 3: EMAIL NOTIFICATION
 # ==========================================
+
 def send_email_alert(screaming_buys):
   if not screaming_buys:
     print("No screaming buys found today. Skipping email.")
@@ -183,6 +186,27 @@ def send_email_alert(screaming_buys):
 # ==========================================
 # MAIN ORCHESTRATION
 # ==========================================
+import json
+import os
+from datetime import datetime
+
+
+def save_history(screaming_buys):
+  """Saves daily results to a history folder for the web dashboard."""
+  os.makedirs("history", exist_ok=True)
+  today_str = datetime.now().strftime("%Y-%m-%d")
+  filename = f"history/{today_str}.json"
+
+  data = {
+      "date": today_str,
+      "total_found": len(screaming_buys),
+      "stocks": screaming_buys,
+  }
+
+  with open(filename, "w") as f:
+    json.dump(data, f, indent=4)
+  print(f"Saved historical results to {filename}")
+  
 def run_agent_scanner():
   print("Running US Stock Screaming Buy Agent Scanner...")
   screaming_buys = []
