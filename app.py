@@ -1,8 +1,10 @@
 from datetime import datetime
 import json
 import os
-import subprocess
 import streamlit as st
+
+# Import your agent function directly
+from stock_agent import run_agent_scanner  # Make sure this matches your function name
 
 st.set_page_config(
     page_title="Screaming Buy Stock Agent", page_icon="🚀", layout="wide"
@@ -25,18 +27,10 @@ if st.sidebar.button("🚀 Run Stock Agent Now"):
       " seconds)..."
   ):
     try:
-      # Executes your stock agent script directly
-      result = subprocess.run(
-          ["python", "stock_agent.py"],
-          capture_output=True,
-          text=True,
-          timeout=60,
-      )
-      if result.returncode == 0:
-        st.sidebar.success("Agent scan completed successfully!")
-        st.rerun()  # Refresh the page to load new results
-      else:
-        st.sidebar.error(f"Error running agent: {result.stderr}")
+      # Run the function directly in memory using Streamlit's Python environment
+      run_agent_scanner()
+      st.sidebar.success("Agent scan completed successfully!")
+      st.rerun()  # Refresh the page to load new results
     except Exception as e:
       st.sidebar.error(f"Failed to execute agent: {e}")
 
