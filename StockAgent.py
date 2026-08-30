@@ -6,7 +6,7 @@ import pandas as pd
 import yfinance as yf
 
 # ==========================================
-# CONFIGURATION & SETTINGS
+# CONFIGURATION & SETTINGSss
 # ==========================================
 WATCHLIST = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"]
 
