@@ -1,8 +1,15 @@
 from datetime import datetime
 import json
 import os
+import requests
 import pandas as pd
-import yfinance as yf
+import streamlit as st
+
+# Securely load your FMP API Key from Streamlit Secrets
+try:
+  FMP_API_KEY = st.secrets["FMP_API_KEY"]
+except Exception:
+  FMP_API_KEY = os.environ.get("FMP_API_KEY", "")
 
 # ==========================================
 # 1. HISTORY SAVING FUNCTION
@@ -27,74 +34,54 @@ def save_history(all_scored_stocks):
 
 
 # ==========================================
-# 2. GUARANTEED ROBUST SCANNER
+# 2. FMP API TECHNICAL SCANNER
 # ==========================================
 
 
 def run_agent_scanner():
-  """Scans the US watchlist cleanly, evaluates Gareth Soloway support zones,
+  """Scans the US watchlist using official Financial Modeling Prep data."""
+  
+  if not FMP_API_KEY:
+    raise ValueError("Missing FMP_API_KEY. Please add it to Streamlit Secrets.")
 
-  and ensures a fully populated 1-to-10 ranked list.
-  """
   watchlist = [
-      "AAPL",
-      "MSFT",
-      "GOOGL",
-      "AMZN",
-      "NVDA",
-      "META",
-      "TSLA",
-      "BRK-B",
-      "JPM",
-      "V",
-      "JNJ",
-      "WMT",
-      "MA",
-      "PG",
-      "UNH",
-      "HD",
-      "DIS",
-      "PYPL",
-      "BAC",
-      "XOM",
-      "CVX",
-      "PFE",
-      "ABBV",
-      "AVGO",
-      "COST",
-      "TMO",
-      "CSCO",
-      "ACN",
-      "ABT",
-      "DHR",
+      "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
+      "BRK-B", "JPM", "V", "JNJ", "WMT", "MA", "PG", "UNH",
+      "HD", "DIS", "PYPL", "BAC", "XOM", "CVX", "PFE", "ABBV",
+      "AVGO", "COST", "TMO", "CSCO", "ACN", "ABT", "DHR"
   ]
 
   all_scored_stocks = []
-  print(f"Starting robust scan for {len(watchlist)} stocks...")
+  print(f"Starting API scan for {len(watchlist)} stocks...")
 
   for ticker in watchlist:
     try:
-      # Download individual stock data cleanly to avoid multi-index errors
-      hist = yf.download(
-          ticker, period="1yr", progress=False, auto_adjust=True
-      )
-
-      if hist.empty or len(hist) < 200:
+      # Fetch 250 trading days of history to cover the 200-day moving average
+      url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?timeseries=250&apikey={FMP_API_KEY}"
+      response = requests.get(url)
+      
+      if response.status_code != 200:
+        continue
+        
+      data = response.json()
+      historical = data.get("historical", [])
+      
+      if len(historical) < 200:
         continue
 
-      # Ensure standard column formatting
-      if isinstance(hist.columns, pd.MultiIndex):
-        hist.columns = hist.columns.get_level_values(0)
+      # Convert API JSON to DataFrame and reverse order to chronological (oldest to newest)
+      df = pd.DataFrame(historical)
+      df = df.iloc[::-1].reset_index(drop=True)
 
-      current_price = float(hist["Close"].iloc[-1])
+      current_price = float(df["close"].iloc[-1])
 
       # --- Soloway Technical Calculations ---
       # 1. Macro Trend Structure (200-day Moving Average)
-      ma_200 = float(hist["Close"].rolling(window=200).mean().iloc[-1])
+      ma_200 = float(df["close"].rolling(window=200).mean().iloc[-1])
       is_macro_uptrend = current_price > ma_200
 
       # 2. RSI Momentum (14-period)
-      delta = hist["Close"].diff()
+      delta = df["close"].diff()
       gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
       loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
       rs = gain / loss
@@ -102,10 +89,8 @@ def run_agent_scanner():
       current_rsi = round(float(rsi.iloc[-1]), 2)
 
       # 3. Support Proximity (Distance to 60-day low)
-      three_month_low = float(hist["Low"].iloc[-60:].min())
-      distance_to_support_pct = (
-          (current_price - three_month_low) / three_month_low
-      ) * 100
+      three_month_low = float(df["low"].iloc[-60:].min())
+      distance_to_support_pct = ((current_price - three_month_low) / three_month_low) * 100
 
       # --- Scoring Engine (1 to 10 Scale) ---
       score = 5.0
@@ -136,8 +121,8 @@ def run_agent_scanner():
           "price": round(current_price, 2),
           "support_level": round(three_month_low, 2),
           "rating": final_rating,
-          "pe": "N/A",
-          "roe": "N/A",
+          "pe": "N/A",  # Can be expanded later using FMP Quote API
+          "roe": "N/A", 
           "rsi": current_rsi,
       }
       all_scored_stocks.append(stock_data)
@@ -146,48 +131,12 @@ def run_agent_scanner():
       print(f"Error processing {ticker}: {e}")
       continue
 
-  # SAFETY NET: If anything failed, guarantee a mock populated list so the UI never displays empty
-  if not all_scored_stocks:
-    print("Applying default fallback payload...")
-    all_scored_stocks = [
-        {
-            "ticker": "AAPL",
-            "price": 225.50,
-            "support_level": 210.00,
-            "rating": 8.5,
-            "pe": "N/A",
-            "roe": "N/A",
-            "rsi": 42.1,
-        },
-        {
-            "ticker": "MSFT",
-            "price": 415.20,
-            "support_level": 395.00,
-            "rating": 7.8,
-            "pe": "N/A",
-            "roe": "N/A",
-            "rsi": 46.5,
-        },
-        {
-            "ticker": "NVDA",
-            "price": 120.00,
-            "support_level": 110.00,
-            "rating": 9.1,
-            "pe": "N/A",
-            "roe": "N/A",
-            "rsi": 38.2,
-        },
-    ]
-
   # Sort by highest rating descending
-  all_scored_stocks = sorted(
-      all_scored_stocks, key=lambda x: x["rating"], reverse=True
-  )
+  all_scored_stocks = sorted(all_scored_stocks, key=lambda x: x["rating"], reverse=True)
 
   save_history(all_scored_stocks)
   print(f"Scan complete. Ranked {len(all_scored_stocks)} stocks.")
   return all_scored_stocks
-
 
 if __name__ == "__main__":
   run_agent_scanner()
