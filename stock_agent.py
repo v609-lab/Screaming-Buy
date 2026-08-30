@@ -32,16 +32,27 @@ def save_history(screaming_buys):
 
 
 def run_agent_scanner():
-  """Scans the stock watchlist using fundamental and technical criteria,
+  """Dynamically fetches the S&P 500 watchlist, scans them for fundamental
 
-  saves history, and returns the list of screaming buys.
+  and technical criteria, saves history, and returns screaming buys.
   """
-  # Define your watchlist (you can add more tickers here)
-  watchlist = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"]
+  print("Fetching S&P 500 watchlist from Wikipedia...")
+  try:
+    table = pd.read_html(
+        "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+    )
+    watchlist = table[0]["Symbol"].tolist()
+    # Clean up ticker symbols (Yahoo Finance uses '-' instead of '.' like BRK.B -> BRK-B)
+    watchlist = [t.replace(".", "-") for t in watchlist]
+  except Exception as e:
+    print(f"Failed to fetch S&P 500 list, using fallback watchlist: {e}")
+    watchlist = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"]
 
   screaming_buys = []
-
-  print(f"Starting scan for {len(watchlist)} stocks...")
+  print(
+      f"Starting scan across {len(watchlist)} stocks (this may take a couple of"
+      " minutes)..."
+  )
 
   for ticker in watchlist:
     try:
@@ -53,14 +64,14 @@ def run_agent_scanner():
 
       current_price = hist["Close"].iloc[-1]
 
-      # Basic metrics fetch (safely handled if missing data)
+      # Basic metrics fetch
       info = stock.info
       pe_ratio = info.get("trailingPE", "N/A")
       roe = info.get("returnOnEquity", "N/A")
       if roe and roe != "N/A":
         roe = round(roe * 100, 2)
 
-      # Simplified Technical Indicators calculation (RSI example)
+      # Technical Indicators calculation (RSI)
       delta = hist["Close"].diff()
       gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
       loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -68,8 +79,6 @@ def run_agent_scanner():
       rsi = 100 - (100 / (1 + rs))
       current_rsi = round(rsi.iloc[-1], 2)
 
-      # Example criteria logic (Adjust your thresholds as needed)
-      # For demonstration, we collect stocks meeting basic criteria or all of them
       stock_data = {
           "ticker": ticker,
           "price": round(current_price, 2),
@@ -78,15 +87,17 @@ def run_agent_scanner():
           "rsi": current_rsi,
       }
 
-      # You can add your strict "Screaming Buy" filtering rules here:
-      # if current_rsi < 40:
+      # Optional: You can filter here for strict "Screaming Buy" rules (e.g., RSI < 40)
+      # For now, it compiles everything scanned successfully
       screaming_buys.append(stock_data)
 
     except Exception as e:
-      print(f"Error processing {ticker}: {e}")
+      # Silently skip individual errors to keep the bulk scan running smoothly
+      continue
 
   # Automatically save history whenever the scanner runs
   save_history(screaming_buys)
+  print(f"Scan complete. Found {len(screaming_buys)} total results.")
 
   return screaming_buys
 
@@ -95,6 +106,4 @@ def run_agent_scanner():
 # 3. EXECUTION GUARD
 # ==========================================
 if __name__ == "__main__":
-  # This block only triggers when run via GitHub Actions or terminal command.
-  # It will NOT auto-execute when imported by your Streamlit web dashboard.
   run_agent_scanner()
