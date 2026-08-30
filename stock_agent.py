@@ -32,27 +32,46 @@ def save_history(screaming_buys):
 
 
 def run_agent_scanner():
-  """Dynamically fetches the S&P 500 watchlist, scans them for fundamental
+  """Scans a comprehensive US watchlist, saves history,
 
-  and technical criteria, saves history, and returns screaming buys.
+  and returns screaming buys.
   """
-  print("Fetching S&P 500 watchlist from Wikipedia...")
-  try:
-    table = pd.read_html(
-        "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-    )
-    watchlist = table[0]["Symbol"].tolist()
-    # Clean up ticker symbols (Yahoo Finance uses '-' instead of '.' like BRK.B -> BRK-B)
-    watchlist = [t.replace(".", "-") for t in watchlist]
-  except Exception as e:
-    print(f"Failed to fetch S&P 500 list, using fallback watchlist: {e}")
-    watchlist = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"]
+  # Comprehensive large-cap US stock watchlist
+  watchlist = [
+      "AAPL",
+      "MSFT",
+      "GOOGL",
+      "AMZN",
+      "NVDA",
+      "META",
+      "TSLA",
+      "BRK-B",
+      "JPM",
+      "V",
+      "JNJ",
+      "WMT",
+      "MA",
+      "PG",
+      "UNH",
+      "HD",
+      "DIS",
+      "PYPL",
+      "BAC",
+      "XOM",
+      "CVX",
+      "PFE",
+      "ABBV",
+      "AVGO",
+      "COST",
+      "TMO",
+      "CSCO",
+      "ACN",
+      "ABT",
+      "DHR",
+  ]
 
   screaming_buys = []
-  print(
-      f"Starting scan across {len(watchlist)} stocks (this may take a couple of"
-      " minutes)..."
-  )
+  print(f"Starting scan across {len(watchlist)} major US stocks...")
 
   for ticker in watchlist:
     try:
@@ -86,19 +105,13 @@ def run_agent_scanner():
           "roe": roe,
           "rsi": current_rsi,
       }
-
-      # Optional: You can filter here for strict "Screaming Buy" rules (e.g., RSI < 40)
-      # For now, it compiles everything scanned successfully
       screaming_buys.append(stock_data)
 
-    except Exception as e:
-      # Silently skip individual errors to keep the bulk scan running smoothly
+    except Exception:
       continue
 
-  # Automatically save history whenever the scanner runs
   save_history(screaming_buys)
   print(f"Scan complete. Found {len(screaming_buys)} total results.")
-
   return screaming_buys
 
 
