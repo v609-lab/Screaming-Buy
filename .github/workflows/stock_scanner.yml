@@ -2,9 +2,8 @@ name: Daily US Stock Screaming Buy Agent
 
 on:
   schedule:
-    # Runs Monday through Friday at 21:00 UTC (Approx 5:00 PM EST after market close)
     - cron: '0 21 * * 1-5'
-  workflow_dispatch: # Lets you run it manually anytime with one click
+  workflow_dispatch:
 
 jobs:
   run-stock-agent:
@@ -22,6 +21,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          cd Screaming-Buy
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
@@ -31,4 +31,5 @@ jobs:
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
           RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
         run: |
+          cd Screaming-Buy
           python stock_agent.py
