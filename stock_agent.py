@@ -3,18 +3,13 @@ import json
 import os
 import requests
 import pandas as pd
-import streamlit as st
 
-# Securely load your FMP API Key from Streamlit Secrets
-try:
-  FMP_API_KEY = st.secrets["FMP_API_KEY"]
-except Exception:
-  FMP_API_KEY = os.environ.get("FMP_API_KEY", "")
+# Hardcoded FMP API Key for guaranteed connection
+FMP_API_KEY = "GOfOMQRJ96YOqTdNJ5NEIqw6cAdw2aRO"
 
 # ==========================================
 # 1. HISTORY SAVING FUNCTION
 # ==========================================
-
 
 def save_history(all_scored_stocks):
   """Saves daily results and ratings to a history folder for the web dashboard."""
@@ -32,18 +27,13 @@ def save_history(all_scored_stocks):
     json.dump(data, f, indent=4)
   print(f"Saved historical ratings to {filename}")
 
-
 # ==========================================
 # 2. FMP API TECHNICAL SCANNER
 # ==========================================
 
-
 def run_agent_scanner():
   """Scans the US watchlist using official Financial Modeling Prep data."""
   
-  if not FMP_API_KEY:
-    raise ValueError("Missing FMP_API_KEY. Please add it to Streamlit Secrets.")
-
   watchlist = [
       "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
       "BRK-B", "JPM", "V", "JNJ", "WMT", "MA", "PG", "UNH",
@@ -61,12 +51,14 @@ def run_agent_scanner():
       response = requests.get(url)
       
       if response.status_code != 200:
+        print(f"Failed to fetch {ticker}: {response.status_code}")
         continue
         
       data = response.json()
       historical = data.get("historical", [])
       
       if len(historical) < 200:
+        print(f"Not enough historical data for {ticker}")
         continue
 
       # Convert API JSON to DataFrame and reverse order to chronological (oldest to newest)
@@ -121,7 +113,7 @@ def run_agent_scanner():
           "price": round(current_price, 2),
           "support_level": round(three_month_low, 2),
           "rating": final_rating,
-          "pe": "N/A",  # Can be expanded later using FMP Quote API
+          "pe": "N/A",  
           "roe": "N/A", 
           "rsi": current_rsi,
       }
