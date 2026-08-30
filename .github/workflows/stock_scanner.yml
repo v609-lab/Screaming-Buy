@@ -14,28 +14,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Locate and prepare files
+      - name: Show all files in workspace (Debug)
         run: |
-          # Finds stock_agent.py anywhere in the repo workspace and brings it to the current root runner directory
-          find . -name "stock_agent.py" -exec cp {} . \;
-          find . -name "requirements.txt" -exec cp {} . \;
-          echo "Files in current directory:"
-          ls -la
+          echo "Current directory contents:"
+          find . -maxdepth 3 -not -path '*/.*'
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run Stock Agent Scanner
+      - name: Install dependencies and run agent
         env:
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
           RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
         run: |
+          # Automatically navigates into the subfolder if it exists, or stays in root
+          if [ -d "Screaming-Buy" ]; then
+            cd Screaming-Buy
+          fi
+          
+          echo "Working directory is now: $(pwd)"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
           python stock_agent.py
