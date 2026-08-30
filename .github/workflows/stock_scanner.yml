@@ -21,7 +21,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd Screaming-Buy
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
@@ -31,5 +30,4 @@ jobs:
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
           RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
         run: |
-          cd Screaming-Buy
           python stock_agent.py
